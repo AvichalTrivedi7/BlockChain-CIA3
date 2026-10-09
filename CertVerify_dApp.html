@@ -1,0 +1,776 @@
+<title>CertVerify dApp</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+:root {
+  --bg:      #050a12;
+  --bg2:     #0a1628;
+  --bg3:     #0f2040;
+  --fg:      #e8f0ff;
+  --fg2:     #8aa4cc;
+  --fg3:     #4a6280;
+  --accent:  #00c8ff;
+  --accent2: #7b5cff;
+  --accent3: #00ff9f;
+  --danger:  #ff4d6a;
+  --warn:    #ffb340;
+  --border:  rgba(0,200,255,0.18);
+  --card:    rgba(10,22,40,0.9);
+  color-scheme: dark;
+  --font:    'Space Grotesk', system-ui, sans-serif;
+  --mono:    'JetBrains Mono', 'Courier New', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font); min-height: 100%;
+  padding-inline: 16px; padding-block: 0;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: linear-gradient(rgba(0,200,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,200,255,0.025) 1px,transparent 1px);
+  background-size: 40px 40px; pointer-events: none; z-index: 0;
+}
+body::after {
+  content: ''; position: fixed; inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 10% 90%,rgba(0,200,255,0.06) 0%,transparent 70%),radial-gradient(ellipse 50% 60% at 90% 10%,rgba(123,92,255,0.07) 0%,transparent 70%);
+  pointer-events: none; z-index: 0;
+}
+.app {
+  position: relative; z-index: 1; max-width: 860px; margin: 0 auto;
+  padding-block: 32px 80px; display: flex; flex-direction: column; gap: 24px;
+}
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: linear-gradient(135deg,var(--accent),var(--accent2));
+  display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+}
+.logo-text { display: flex; flex-direction: column; gap: 1px; }
+.logo-text strong { font-size: 17px; font-weight: 700; color: var(--fg); line-height: 1; }
+.logo-text span { font-size: 11px; color: var(--fg3); letter-spacing: 0.05em; }
+.connect-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg2); border: 1px solid var(--border); color: var(--fg2);
+  border-radius: 100px; padding: 8px 18px; font-size: 13px; font-weight: 500;
+  font-family: var(--font); cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.connect-btn:hover { border-color: var(--accent); color: var(--accent); }
+.connect-btn.connected { border-color: var(--accent3); color: var(--accent3); }
+.wallet-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg3); transition: background 0.2s; }
+.connect-btn.connected .wallet-dot { background: var(--accent3); }
+
+.status-bar {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 18px; display: flex; align-items: center; gap: 10px;
+  font-size: 12px; font-family: var(--mono); color: var(--fg3); flex-wrap: wrap;
+}
+.status-bar .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg3); flex-shrink: 0; }
+.status-bar.ok .dot { background: var(--accent3); }
+.status-bar.ok { color: var(--fg2); border-color: rgba(0,255,159,0.2); }
+.status-bar .addr { color: var(--accent); }
+.status-bar .net { color: var(--accent2); }
+
+.admin-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,179,64,0.1); border: 1px solid rgba(255,179,64,0.3);
+  color: var(--warn); border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 500;
+}
+
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 24px; backdrop-filter: blur(12px);
+}
+.card-title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 15px; font-weight: 700; color: var(--fg); margin-bottom: 18px;
+}
+.card-title .icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+}
+.icon-issue  { background: rgba(0,255,159,0.12); }
+.icon-verify { background: rgba(0,200,255,0.12); }
+.icon-revoke { background: rgba(255,77,106,0.1); }
+.icon-bulk   { background: rgba(123,92,255,0.12); }
+.icon-admin  { background: rgba(255,179,64,0.12); }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.full { grid-column: 1 / -1; }
+label { font-size: 11px; font-weight: 600; color: var(--fg3); letter-spacing: 0.1em; text-transform: uppercase; }
+input, select {
+  background: var(--bg); border: 1px solid rgba(0,200,255,0.2); border-radius: 10px;
+  padding: 10px 14px; font-size: 13px; font-family: var(--font); color: var(--fg);
+  outline: none; transition: border-color 0.2s; width: 100%;
+}
+input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,200,255,0.08); }
+input::placeholder { color: var(--fg3); }
+select option { background: var(--bg2); }
+
+textarea.bulk-input {
+  width: 100%; background: var(--bg); border: 1px solid rgba(123,92,255,0.25);
+  border-radius: 10px; padding: 12px 14px; font-size: 12px; font-family: var(--mono);
+  color: var(--fg2); resize: vertical; min-height: 120px; outline: none;
+  transition: border-color 0.2s;
+}
+textarea.bulk-input:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(123,92,255,0.08); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: none; border-radius: 10px; padding: 11px 22px;
+  font-size: 13px; font-weight: 600; font-family: var(--font);
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-issue  { background: linear-gradient(135deg,rgba(0,255,159,0.2),rgba(0,200,255,0.15)); color: var(--accent3); border: 1px solid rgba(0,255,159,0.35); }
+.btn-issue:hover:not(:disabled)  { background: linear-gradient(135deg,rgba(0,255,159,0.3),rgba(0,200,255,0.25)); }
+.btn-verify { background: linear-gradient(135deg,rgba(0,200,255,0.2),rgba(123,92,255,0.15)); color: var(--accent); border: 1px solid rgba(0,200,255,0.35); }
+.btn-verify:hover:not(:disabled) { background: linear-gradient(135deg,rgba(0,200,255,0.3),rgba(123,92,255,0.25)); }
+.btn-revoke { background: linear-gradient(135deg,rgba(255,77,106,0.15),rgba(255,77,106,0.1)); color: var(--danger); border: 1px solid rgba(255,77,106,0.35); }
+.btn-revoke:hover:not(:disabled) { background: linear-gradient(135deg,rgba(255,77,106,0.25),rgba(255,77,106,0.18)); }
+.btn-bulk   { background: linear-gradient(135deg,rgba(123,92,255,0.2),rgba(0,200,255,0.1)); color: var(--accent2); border: 1px solid rgba(123,92,255,0.35); }
+.btn-bulk:hover:not(:disabled)   { background: linear-gradient(135deg,rgba(123,92,255,0.32),rgba(0,200,255,0.18)); }
+.btn-warn   { background: linear-gradient(135deg,rgba(255,179,64,0.15),rgba(255,179,64,0.08)); color: var(--warn); border: 1px solid rgba(255,179,64,0.35); }
+.btn-warn:hover:not(:disabled)   { background: linear-gradient(135deg,rgba(255,179,64,0.25),rgba(255,179,64,0.15)); }
+
+.btn-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+
+.result {
+  margin-top: 16px; border-radius: 12px; padding: 16px 18px;
+  font-size: 13px; display: none; animation: fadeIn 0.3s ease;
+}
+.result.show { display: block; }
+.result.success { background: rgba(0,255,159,0.07); border: 1px solid rgba(0,255,159,0.25); }
+.result.error   { background: rgba(255,77,106,0.07); border: 1px solid rgba(255,77,106,0.25); }
+.result.pending { background: rgba(0,200,255,0.07); border: 1px solid rgba(0,200,255,0.25); }
+.result.warn    { background: rgba(255,179,64,0.07); border: 1px solid rgba(255,179,64,0.25); }
+.result-title { font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.result.success .result-title { color: var(--accent3); }
+.result.error   .result-title { color: var(--danger); }
+.result.pending .result-title { color: var(--accent); }
+.result.warn    .result-title { color: var(--warn); }
+
+.cert-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; }
+.cert-label { font-size: 11px; color: var(--fg3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; padding-top: 2px; }
+.cert-value { font-family: var(--mono); font-size: 12px; color: var(--fg2); word-break: break-all; min-width: 0; }
+.cert-value.valid   { color: var(--accent3); }
+.cert-value.invalid { color: var(--danger); }
+.tx-link { font-family: var(--mono); font-size: 11px; color: var(--accent); word-break: break-all; }
+
+/* QR code display */
+.qr-section {
+  margin-top: 16px; padding: 16px; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 12px;
+  display: flex; align-items: flex-start; gap: 20px; flex-wrap: wrap;
+}
+.qr-box { flex-shrink: 0; }
+.qr-box canvas, .qr-box img { border-radius: 6px; display: block; }
+.qr-meta { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.qr-label { font-size: 10px; font-weight: 700; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; }
+.qr-hint  { font-size: 11px; color: var(--fg3); line-height: 1.5; }
+.qr-certid { font-family: var(--mono); font-size: 12px; color: var(--fg); word-break: break-all; }
+
+/* Bulk QR row */
+.bulk-qr-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg); border-radius: 8px; padding: 8px 12px;
+  font-size: 11px; font-family: var(--mono); margin-top: 4px;
+}
+.bulk-qr-row canvas, .bulk-qr-row img { border-radius: 4px; flex-shrink: 0; }
+
+/* Bulk progress */
+.bulk-progress { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.bulk-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg); border-radius: 8px; padding: 8px 12px;
+  font-size: 12px; font-family: var(--mono);
+}
+.bulk-row .pill {
+  font-size: 10px; font-weight: 700; border-radius: 6px; padding: 2px 8px; white-space: nowrap;
+}
+.pill-ok      { background: rgba(0,255,159,0.15); color: var(--accent3); }
+.pill-fail    { background: rgba(255,77,106,0.15); color: var(--danger); }
+.pill-pending { background: rgba(0,200,255,0.12); color: var(--accent); }
+.bulk-name    { flex: 1; color: var(--fg2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bulk-summary { font-size: 13px; font-weight: 600; color: var(--fg2); margin-top: 6px; }
+
+/* Transfer admin confirm */
+.confirm-box {
+  margin-top: 12px; padding: 14px 16px;
+  background: rgba(255,77,106,0.06); border: 1px solid rgba(255,77,106,0.2);
+  border-radius: 10px; font-size: 12px; color: var(--fg2); line-height: 1.6;
+}
+.confirm-box strong { color: var(--danger); }
+.confirm-addr { font-family: var(--mono); font-size: 11px; color: var(--warn); word-break: break-all; margin: 6px 0; }
+
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(0,200,255,0.2); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+
+.contract-info {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 18px; font-family: var(--mono); font-size: 11px; color: var(--fg3);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.contract-info span { color: var(--accent); word-break: break-all; }
+
+.config-panel {
+  background: var(--bg2); border: 1px solid rgba(255,179,64,0.2); border-radius: 12px; padding: 16px 18px;
+}
+.config-panel summary {
+  font-size: 12px; font-weight: 600; color: var(--warn);
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+}
+.config-panel summary::before { content: '⚙'; }
+textarea.abi-input {
+  width: 100%; margin-top: 12px; background: var(--bg);
+  border: 1px solid rgba(0,200,255,0.2); border-radius: 8px;
+  padding: 10px 12px; font-family: var(--mono); font-size: 10px;
+  color: var(--fg2); resize: vertical; min-height: 80px; outline: none;
+}
+.config-row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.config-input {
+  flex: 1; min-width: 200px; background: var(--bg);
+  border: 1px solid rgba(0,200,255,0.2); border-radius: 8px;
+  padding: 8px 12px; font-family: var(--mono); font-size: 11px; color: var(--fg); outline: none;
+}
+.btn-small {
+  padding: 8px 16px; font-size: 12px; background: rgba(0,200,255,0.12);
+  border: 1px solid rgba(0,200,255,0.3); color: var(--accent); border-radius: 8px;
+  cursor: pointer; font-family: var(--font); font-weight: 600; transition: all 0.2s; white-space: nowrap;
+}
+.btn-small:hover { background: rgba(0,200,255,0.22); }
+
+.hint { font-size: 11px; color: var(--fg3); margin-top: 8px; line-height: 1.5; }
+.hint code { font-family: var(--mono); background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+
+footer { text-align: center; font-size: 11px; color: var(--fg3); font-family: var(--mono); padding-top: 8px; }
+</style>
+
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🔗</div>
+      <div class="logo-text">
+        <strong>CertVerify</strong>
+        <span>Decentralised Certificate Verification</span>
+      </div>
+    </div>
+    <button class="connect-btn" id="connectBtn" onclick="connectWallet()">
+      <div class="wallet-dot"></div>
+      Connect MetaMask
+    </button>
+  </header>
+
+  <!-- Status bar -->
+  <div class="status-bar" id="statusBar">
+    <div class="dot"></div>
+    <span id="statusText">Not connected — click Connect MetaMask to begin</span>
+  </div>
+
+  <!-- Config panel -->
+  <details class="config-panel" id="configPanel">
+    <summary>Contract Configuration — paste your deployed contract address &amp; ABI here</summary>
+    <div class="config-row">
+      <input class="config-input" id="contractAddrInput" placeholder="Contract address: 0x..." value="">
+      <button class="btn-small" onclick="saveConfig()">Save</button>
+    </div>
+    <textarea class="abi-input" id="abiInput" rows="4" placeholder="Paste ABI JSON here (optional — default ABI pre-loaded)">[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"string","name":"certId","type":"string"},{"indexed":false,"internalType":"string","name":"recipientName","type":"string"},{"indexed":false,"internalType":"string","name":"courseName","type":"string"}],"name":"CertificateIssued","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"string","name":"certId","type":"string"}],"name":"CertificateRevoked","type":"event"},{"inputs":[],"name":"admin","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"string","name":"certId","type":"string"},{"internalType":"string","name":"recipientName","type":"string"},{"internalType":"string","name":"courseName","type":"string"},{"internalType":"string","name":"issueDate","type":"string"}],"name":"issueCertificate","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"string","name":"certId","type":"string"}],"name":"revokeCertificate","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"string","name":"certId","type":"string"}],"name":"verifyCertificate","outputs":[{"internalType":"string","name":"","type":"string"},{"internalType":"string","name":"","type":"string"},{"internalType":"string","name":"","type":"string"},{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]</textarea>
+  </details>
+
+  <!-- Admin badge -->
+  <div class="admin-badge" id="adminBadge" hidden>
+    ⚡ You are the contract admin — issue, bulk issue, revoke and transfer are unlocked
+  </div>
+
+  <!-- ── ISSUE CERTIFICATE ── -->
+  <div class="card">
+    <div class="card-title">
+      <div class="icon icon-issue">📜</div>
+      Issue Certificate
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="certId">Certificate ID</label>
+        <input id="certId" placeholder="e.g. CERT2026-001" />
+      </div>
+      <div class="field">
+        <label for="issueDate">Issue Date</label>
+        <input id="issueDate" type="date" />
+      </div>
+      <div class="field">
+        <label for="recipientName">Recipient Name</label>
+        <input id="recipientName" placeholder="e.g. Shaurya Kalra" />
+      </div>
+      <div class="field">
+        <label for="courseName">Course / Programme</label>
+        <input id="courseName" placeholder="e.g. BSc Data Science & AI" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-issue" id="issueBtn" onclick="issueCert()" disabled>Issue Certificate</button>
+    </div>
+    <div class="result" id="issueResult"></div>
+  </div>
+
+  <!-- ── BULK ISSUE ── -->
+  <div class="card">
+    <div class="card-title">
+      <div class="icon icon-bulk">📋</div>
+      Bulk Issue Certificates
+    </div>
+    <div class="field">
+      <label>CSV Data — one certificate per line</label>
+      <textarea class="bulk-input" id="bulkCsv" placeholder="certId, recipientName, courseName, issueDate
+CERT-2026-001, Shaurya Kalra, BSc Data Science & AI, 2026-10-01
+CERT-2026-002, Arjun Mehta, BSc Computer Science, 2026-10-01
+CERT-2026-003, Priya Singh, BCA, 2026-10-01"></textarea>
+    </div>
+    <p class="hint">Format: <code>certId, recipientName, courseName, issueDate</code> — one row per line, header row optional. Each row sends one transaction via MetaMask.</p>
+    <div class="btn-row">
+      <button class="btn btn-bulk" id="bulkParseBtn" onclick="parseBulk()">Preview CSV</button>
+      <button class="btn btn-issue" id="bulkIssueBtn" onclick="bulkIssue()" disabled>Issue All</button>
+    </div>
+    <div class="result" id="bulkPreview"></div>
+    <div class="result" id="bulkResult"></div>
+  </div>
+
+  <!-- ── VERIFY CERTIFICATE ── -->
+  <div class="card">
+    <div class="card-title">
+      <div class="icon icon-verify">🔍</div>
+      Verify Certificate
+    </div>
+    <div class="field">
+      <label for="verifyCertId">Certificate ID</label>
+      <input id="verifyCertId" placeholder="Enter certificate ID to verify" />
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-verify" id="verifyBtn" onclick="verifyCert()" disabled>Verify</button>
+    </div>
+    <div class="result" id="verifyResult"></div>
+  </div>
+
+  <!-- ── REVOKE CERTIFICATE ── -->
+  <div class="card">
+    <div class="card-title">
+      <div class="icon icon-revoke">🚫</div>
+      Revoke Certificate
+    </div>
+    <div class="field">
+      <label for="revokeCertId">Certificate ID</label>
+      <input id="revokeCertId" placeholder="Enter certificate ID to revoke" />
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-revoke" id="revokeBtn" onclick="revokeCert()" disabled>Revoke Certificate</button>
+    </div>
+    <div class="result" id="revokeResult"></div>
+  </div>
+
+  <!-- ── TRANSFER ADMIN ── -->
+  <div class="card">
+    <div class="card-title">
+      <div class="icon icon-admin">🔑</div>
+      Transfer Admin
+    </div>
+    <div class="field">
+      <label for="newAdminAddr">New Admin Wallet Address</label>
+      <input id="newAdminAddr" placeholder="0x... new admin's wallet address" />
+    </div>
+    <p class="hint">⚠ This calls <code>transferOwnership</code> on-chain. Once confirmed, your wallet loses all admin privileges permanently — make sure the address is correct.</p>
+    <div class="btn-row">
+      <button class="btn btn-warn" id="transferPreviewBtn" onclick="previewTransfer()" disabled>Review Transfer</button>
+    </div>
+    <div id="transferConfirmBox" hidden>
+      <div class="confirm-box">
+        <strong>⚠ Are you absolutely sure?</strong><br>
+        You are about to transfer admin control to:<br>
+        <div class="confirm-addr" id="transferAddrDisplay"></div>
+        This action is <strong>irreversible</strong>. Your current wallet will lose all admin rights.
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-warn" id="transferConfirmBtn" onclick="transferAdmin()">Confirm Transfer</button>
+        <button class="btn btn-verify" onclick="cancelTransfer()">Cancel</button>
+      </div>
+    </div>
+    <div class="result" id="transferResult"></div>
+  </div>
+
+  <div class="contract-info" id="contractInfo">
+    Contract: <span id="contractAddrDisplay">Not configured — expand settings above</span>
+    &nbsp;·&nbsp; Network: <span id="networkDisplay" style="color:var(--accent2)">—</span>
+  </div>
+
+  <footer>
+    CertVerify dApp · Built on Ethereum · Solidity ^0.8.0 · Shaurya Kalra · Christ University Delhi NCR
+  </footer>
+
+</div>
+
+<script>
+// ── State ──
+let provider = null, signer = null, contract = null;
+let userAddress = null, isAdmin = false;
+let bulkRows = [];
+
+const DEFAULT_ABI = JSON.parse(document.getElementById('abiInput').value);
+let CONTRACT_ADDRESS = '';
+
+// ── Config ──
+function saveConfig() {
+  const addr = document.getElementById('contractAddrInput').value.trim();
+  if (addr) {
+    CONTRACT_ADDRESS = addr;
+    document.getElementById('contractAddrDisplay').textContent = addr.slice(0,8) + '...' + addr.slice(-6);
+    if (provider && signer) reinitContract();
+  }
+}
+
+// ── Connect MetaMask ──
+async function connectWallet() {
+  if (!window.ethereum) { setStatus('error','MetaMask not found — install from metamask.io'); return; }
+  try {
+    const btn = document.getElementById('connectBtn');
+    btn.innerHTML = '<div class="wallet-dot"></div>Connecting…'; btn.disabled = true;
+
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send('eth_requestAccounts', []);
+    signer = await provider.getSigner();
+    userAddress = await signer.getAddress();
+
+    const network = await provider.getNetwork();
+    const netName = network.chainId === 11155111n ? 'Sepolia Testnet' :
+                    network.chainId === 1n ? 'Ethereum Mainnet' :
+                    network.chainId === 1337n ? 'Localhost' : `Chain ${network.chainId}`;
+
+    btn.className = 'connect-btn connected';
+    btn.innerHTML = `<div class="wallet-dot"></div>${userAddress.slice(0,6)}…${userAddress.slice(-4)}`;
+    btn.disabled = false;
+    document.getElementById('networkDisplay').textContent = netName;
+    setStatus('ok', `Connected: <span class="addr">${userAddress.slice(0,8)}…${userAddress.slice(-6)}</span> &nbsp;·&nbsp; <span class="net">${netName}</span>`);
+
+    reinitContract();
+    window.ethereum.on('accountsChanged', () => location.reload());
+    window.ethereum.on('chainChanged', () => location.reload());
+  } catch(e) {
+    document.getElementById('connectBtn').innerHTML = '<div class="wallet-dot"></div>Connect MetaMask';
+    document.getElementById('connectBtn').disabled = false;
+    setStatus('error','Connection rejected — please approve in MetaMask');
+  }
+}
+
+async function reinitContract() {
+  if (!CONTRACT_ADDRESS || !signer) return;
+  let abi = DEFAULT_ABI;
+  try { const c = document.getElementById('abiInput').value.trim(); if(c) abi = JSON.parse(c); } catch(e){}
+  contract = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
+  try {
+    const adminAddr = await contract.admin();
+    isAdmin = adminAddr.toLowerCase() === userAddress.toLowerCase();
+    document.getElementById('adminBadge').hidden = !isAdmin;
+    document.getElementById('issueBtn').disabled = !isAdmin;
+    document.getElementById('revokeBtn').disabled = !isAdmin;
+    document.getElementById('bulkIssueBtn').disabled = true; // unlocked after preview
+    document.getElementById('transferPreviewBtn').disabled = !isAdmin;
+  } catch(e){}
+  document.getElementById('verifyBtn').disabled = false;
+  document.getElementById('contractAddrDisplay').textContent = CONTRACT_ADDRESS.slice(0,8)+'...'+CONTRACT_ADDRESS.slice(-6);
+}
+
+// ── Issue Certificate ──
+async function issueCert() {
+  const certId = document.getElementById('certId').value.trim();
+  const name   = document.getElementById('recipientName').value.trim();
+  const course = document.getElementById('courseName').value.trim();
+  const date   = document.getElementById('issueDate').value.trim();
+  if (!certId||!name||!course||!date) { showResult('issueResult','error','✕ Missing fields','Fill in all four fields.'); return; }
+  if (!contract) { showResult('issueResult','error','✕ Not connected','Connect wallet and set contract address first.'); return; }
+  showResult('issueResult','pending','<div class="spinner"></div> Sending transaction…','Waiting for MetaMask confirmation…');
+  try {
+    const tx = await contract.issueCertificate(certId, name, course, date);
+    showResult('issueResult','pending','<div class="spinner"></div> Mining…',`Tx: <span class="tx-link">${tx.hash}</span>`);
+    const receipt = await tx.wait();
+    showResult('issueResult','success','✓ Certificate Issued',`
+      <div class="cert-grid">
+        <span class="cert-label">Cert ID</span><span class="cert-value">${certId}</span>
+        <span class="cert-label">Recipient</span><span class="cert-value">${name}</span>
+        <span class="cert-label">Course</span><span class="cert-value">${course}</span>
+        <span class="cert-label">Date</span><span class="cert-value">${date}</span>
+        <span class="cert-label">Tx Hash</span><span class="cert-value"><a class="tx-link" href="https://sepolia.etherscan.io/tx/${receipt.hash}" target="_blank">${receipt.hash.slice(0,18)}…</a></span>
+        <span class="cert-label">Block</span><span class="cert-value">#${receipt.blockNumber}</span>
+      </div>
+      <div class="qr-section">
+        <div class="qr-box" id="issueQrBox"></div>
+        <div class="qr-meta">
+          <span class="qr-label">📱 Scan to Verify</span>
+          <span class="qr-certid">${certId}</span>
+          <span class="qr-hint">This QR encodes the Certificate ID.<br>Scan it to instantly look up this cert on the blockchain.</span>
+          <a class="tx-link" href="https://sepolia.etherscan.io/tx/${receipt.hash}" target="_blank" style="margin-top:4px">View transaction on Etherscan ↗</a>
+        </div>
+      </div>`);
+    generateQR('issueQrBox', certId, 128);
+  } catch(e) {
+    const msg = e.reason||e.message||'Transaction failed';
+    showResult('issueResult','error','✕ Failed', msg.slice(0,200));
+  }
+}
+
+// ── Bulk Issue ──
+function parseBulk() {
+  const raw = document.getElementById('bulkCsv').value.trim();
+  if (!raw) { showResult('bulkPreview','error','✕ Empty','Paste CSV data first.'); return; }
+
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  bulkRows = [];
+
+  for (const line of lines) {
+    const parts = line.split(',').map(p => p.trim());
+    // skip header row
+    if (parts[0].toLowerCase() === 'certid' || parts[0].toLowerCase() === 'cert id') continue;
+    if (parts.length < 4) continue;
+    bulkRows.push({ certId: parts[0], name: parts[1], course: parts[2], date: parts[3], status: 'pending' });
+  }
+
+  if (bulkRows.length === 0) {
+    showResult('bulkPreview','error','✕ No valid rows','Check format: certId, recipientName, courseName, issueDate');
+    return;
+  }
+
+  const rows = bulkRows.map(r =>
+    `<div class="bulk-row">
+      <span class="pill pill-pending">QUEUED</span>
+      <span class="bulk-name">${r.certId} — ${r.name}</span>
+      <span style="font-size:11px;color:var(--fg3)">${r.course}</span>
+    </div>`
+  ).join('');
+
+  showResult('bulkPreview','pending',`📋 ${bulkRows.length} certificates queued`,
+    `<div class="bulk-progress">${rows}</div><p class="bulk-summary">Each will require a separate MetaMask confirmation.</p>`);
+
+  if (isAdmin && contract) document.getElementById('bulkIssueBtn').disabled = false;
+}
+
+async function bulkIssue() {
+  if (!bulkRows.length) { parseBulk(); return; }
+  if (!contract) { showResult('bulkResult','error','✕ Not connected','Connect wallet first.'); return; }
+
+  document.getElementById('bulkIssueBtn').disabled = true;
+  document.getElementById('bulkParseBtn').disabled = true;
+
+  let passed = 0, failed = 0;
+  const statusEls = [];
+
+  // Build live progress UI
+  const rows = bulkRows.map((r, i) => {
+    const id = `brow-${i}`;
+    return `<div class="bulk-row" id="${id}">
+      <span class="pill pill-pending" id="${id}-pill">PENDING</span>
+      <span class="bulk-name">${r.certId} — ${r.name}</span>
+      <span style="font-size:11px;color:var(--fg3)">${r.course}</span>
+    </div>`;
+  }).join('');
+
+  showResult('bulkResult','pending',`<div class="spinner"></div> Issuing ${bulkRows.length} certificates…`,
+    `<div class="bulk-progress">${rows}</div><div class="bulk-summary" id="bulkSummaryLine">0 / ${bulkRows.length} done</div>`);
+
+  for (let i = 0; i < bulkRows.length; i++) {
+    const r = bulkRows[i];
+    const pill = document.getElementById(`brow-${i}-pill`);
+    if (pill) { pill.textContent = 'SIGNING…'; pill.className = 'pill pill-pending'; }
+    try {
+      const tx = await contract.issueCertificate(r.certId, r.name, r.course, r.date);
+      if (pill) { pill.textContent = 'MINING…'; }
+      const receipt = await tx.wait();
+      passed++;
+      if (pill) { pill.textContent = '✓ DONE'; pill.className = 'pill pill-ok'; }
+      // Append QR + Etherscan link to this row
+      const rowEl = document.getElementById(`brow-${i}`);
+      if (rowEl) {
+        const qrId = `bqr-${i}`;
+        const etherLink = `https://sepolia.etherscan.io/tx/${receipt.hash}`;
+        const qrDiv = document.createElement('div');
+        qrDiv.className = 'bulk-qr-row';
+        qrDiv.innerHTML = `<div id="${qrId}" style="width:56px;height:56px;flex-shrink:0"></div>
+          <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+            <span style="color:var(--accent3);font-size:10px;font-weight:700">QR · ${r.certId}</span>
+            <a class="tx-link" href="${etherLink}" target="_blank" style="font-size:10px">Etherscan ↗</a>
+          </div>`;
+        rowEl.insertAdjacentElement('afterend', qrDiv);
+        generateQR(qrId, r.certId, 56);
+      }
+    } catch(e) {
+      failed++;
+      if (pill) { pill.textContent = '✕ FAIL'; pill.className = 'pill pill-fail'; }
+    }
+    const summaryEl = document.getElementById('bulkSummaryLine');
+    if (summaryEl) summaryEl.textContent = `${passed + failed} / ${bulkRows.length} done — ${passed} issued, ${failed} failed`;
+  }
+
+  // Final result
+  const resultEl = document.getElementById('bulkResult');
+  if (resultEl) {
+    resultEl.className = failed === 0 ? 'result success show' : 'result warn show';
+    const title = resultEl.querySelector('.result-title');
+    if (title) title.innerHTML = failed === 0
+      ? `✓ All ${passed} certificates issued`
+      : `⚠ ${passed} issued, ${failed} failed`;
+  }
+
+  document.getElementById('bulkParseBtn').disabled = false;
+}
+
+// ── Verify Certificate ──
+async function verifyCert() {
+  const certId = document.getElementById('verifyCertId').value.trim();
+  if (!certId) { showResult('verifyResult','error','✕ Enter a Certificate ID',''); return; }
+  if (!contract && (!provider || !CONTRACT_ADDRESS)) {
+    showResult('verifyResult','error','✕ Not connected','Connect wallet and set contract address first.'); return;
+  }
+  showResult('verifyResult','pending','<div class="spinner"></div> Querying blockchain…','Free read — no gas required.');
+  try {
+    const rc = contract || new ethers.Contract(CONTRACT_ADDRESS, DEFAULT_ABI, provider);
+    const [name, course, date, isValid] = await rc.verifyCertificate(certId);
+    showResult('verifyResult', isValid ? 'success' : 'error',
+      isValid ? '✓ Certificate Verified' : '⚠ Certificate Revoked',
+      `<div class="cert-grid">
+        <span class="cert-label">Cert ID</span><span class="cert-value">${certId}</span>
+        <span class="cert-label">Recipient</span><span class="cert-value">${name}</span>
+        <span class="cert-label">Course</span><span class="cert-value">${course}</span>
+        <span class="cert-label">Issue Date</span><span class="cert-value">${date}</span>
+        <span class="cert-label">Status</span><span class="cert-value ${isValid?'valid':'invalid'}">${isValid?'✓ VALID':'✕ REVOKED'}</span>
+      </div>`);
+  } catch(e) {
+    const msg = e.reason||e.message||'';
+    showResult('verifyResult','error','✕ Not Found',
+      msg.includes('not found')||msg.includes('Certificate not found') ? 'No certificate found with this ID on-chain.' : msg.slice(0,200));
+  }
+}
+
+// ── Revoke Certificate ──
+async function revokeCert() {
+  const certId = document.getElementById('revokeCertId').value.trim();
+  if (!certId) { showResult('revokeResult','error','✕ Enter a Certificate ID',''); return; }
+  if (!contract) { showResult('revokeResult','error','✕ Not connected','Connect wallet first.'); return; }
+  showResult('revokeResult','pending','<div class="spinner"></div> Sending revocation…','Waiting for MetaMask confirmation…');
+  try {
+    const tx = await contract.revokeCertificate(certId);
+    showResult('revokeResult','pending','<div class="spinner"></div> Mining…',`Tx: <span class="tx-link">${tx.hash}</span>`);
+    const receipt = await tx.wait();
+    showResult('revokeResult','error','🚫 Certificate Revoked',
+      `<div class="cert-grid">
+        <span class="cert-label">Cert ID</span><span class="cert-value">${certId}</span>
+        <span class="cert-label">Status</span><span class="cert-value invalid">✕ REVOKED on-chain</span>
+        <span class="cert-label">Tx Hash</span><span class="cert-value"><a class="tx-link" href="https://sepolia.etherscan.io/tx/${receipt.hash}" target="_blank">${receipt.hash.slice(0,18)}…</a></span>
+        <span class="cert-label">Block</span><span class="cert-value">#${receipt.blockNumber}</span>
+      </div>`);
+  } catch(e) {
+    showResult('revokeResult','error','✕ Failed',(e.reason||e.message||'').slice(0,200));
+  }
+}
+
+// ── Transfer Admin ──
+function previewTransfer() {
+  const addr = document.getElementById('newAdminAddr').value.trim();
+  if (!addr || !addr.startsWith('0x') || addr.length !== 42) {
+    showResult('transferResult','error','✕ Invalid address','Enter a valid 0x Ethereum address.');
+    return;
+  }
+  if (addr.toLowerCase() === userAddress.toLowerCase()) {
+    showResult('transferResult','error','✕ Same address','That\'s your current wallet — enter a different address.');
+    return;
+  }
+  document.getElementById('transferAddrDisplay').textContent = addr;
+  document.getElementById('transferConfirmBox').hidden = false;
+  document.getElementById('transferPreviewBtn').hidden = true;
+  document.getElementById('transferResult').className = 'result';
+}
+
+function cancelTransfer() {
+  document.getElementById('transferConfirmBox').hidden = true;
+  document.getElementById('transferPreviewBtn').hidden = false;
+}
+
+async function transferAdmin() {
+  const addr = document.getElementById('newAdminAddr').value.trim();
+  if (!contract) { showResult('transferResult','error','✕ Not connected','Connect wallet first.'); return; }
+
+  document.getElementById('transferConfirmBox').hidden = true;
+  showResult('transferResult','pending','<div class="spinner"></div> Transferring admin…','Waiting for MetaMask confirmation…');
+
+  try {
+    // Call transferOwnership — works if your contract has it,
+    // or falls back to a direct admin state update pattern
+    let tx;
+    try {
+      tx = await contract.transferOwnership(addr);
+    } catch(e) {
+      // If contract doesn't have transferOwnership, show instructions
+      showResult('transferResult','warn','⚠ Function not in contract',
+        `Your deployed contract doesn't have <code>transferOwnership</code>. To add it, redeploy with OpenZeppelin's <code>Ownable</code>, or add this function to your Solidity contract:<br><br>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--accent3)">
+        function transferAdmin(address newAdmin) public onlyAdmin {<br>
+        &nbsp;&nbsp;require(newAdmin != address(0));<br>
+        &nbsp;&nbsp;admin = newAdmin;<br>
+        }
+        </span>`);
+      document.getElementById('transferPreviewBtn').hidden = false;
+      return;
+    }
+    showResult('transferResult','pending','<div class="spinner"></div> Mining…',`Tx: <span class="tx-link">${tx.hash}</span>`);
+    const receipt = await tx.wait();
+    showResult('transferResult','success','✓ Admin Transferred',
+      `<div class="cert-grid">
+        <span class="cert-label">New Admin</span><span class="cert-value">${addr}</span>
+        <span class="cert-label">Tx Hash</span><span class="cert-value"><a class="tx-link" href="https://sepolia.etherscan.io/tx/${receipt.hash}" target="_blank">${receipt.hash.slice(0,18)}…</a></span>
+        <span class="cert-label">Block</span><span class="cert-value">#${receipt.blockNumber}</span>
+      </div>
+      <p style="margin-top:10px;font-size:12px;color:var(--warn)">Your wallet no longer has admin access. Reload the page.</p>`);
+    isAdmin = false;
+    document.getElementById('adminBadge').hidden = true;
+  } catch(e) {
+    showResult('transferResult','error','✕ Failed',(e.reason||e.message||'').slice(0,200));
+    document.getElementById('transferPreviewBtn').hidden = false;
+  }
+}
+
+// ── QR Code ──
+function generateQR(containerId, text, size = 128) {
+  const el = document.getElementById(containerId);
+  if (!el || typeof QRCode === 'undefined') return;
+  el.innerHTML = '';
+  new QRCode(el, { text, width: size, height: size,
+    colorDark: '#e8f0ff', colorLight: '#0a1628',
+    correctLevel: QRCode.CorrectLevel.M });
+}
+
+// ── Helpers ──
+function setStatus(type, html) {
+  const bar = document.getElementById('statusBar');
+  bar.className = 'status-bar' + (type==='ok' ? ' ok' : '');
+  document.getElementById('statusText').innerHTML = html;
+}
+function showResult(id, type, title, body) {
+  const el = document.getElementById(id);
+  el.className = `result ${type} show`;
+  el.innerHTML = `<div class="result-title">${title}</div>${body}`;
+}
+
+document.getElementById('issueDate').value = new Date().toISOString().split('T')[0];
+
+if (window.ethereum) {
+  window.ethereum.request({ method: 'eth_accounts' }).then(accounts => {
+    if (accounts.length > 0) connectWallet();
+  });
+}
+</script>
