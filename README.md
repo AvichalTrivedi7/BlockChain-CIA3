@@ -116,9 +116,9 @@ Never commit your `.env` file.
 
 ## Authors
 
-**Shaurya Kalra** Registration No. 24215223
-**Avichal Trivedi** Registration No. 24215206 
-**Shubhashish Garimella** Registration No. 24215225
-**Neer Dwivedi** Registration No. 24215217
+**Shaurya Kalra** Registration No. 24215223,
+**Avichal Trivedi** Registration No. 24215206,
+**Shubhashish Garimella** Registration No. 24215225,
+**Neer Dwivedi** Registration No. 24215217.
 
 BSc Data Science & AI · Christ University Delhi NCR  
